@@ -1,148 +1,305 @@
 (function (window) {
-    'use strict';
-    
     window.opspark = window.opspark || {};
-    
-    var physikz = window.opspark.racket.physikz;
-    
-    var 
-        KEYCODE_SPACE = 32,
-        KEYCODE_UP = 38,
-        KEYCODE_LEFT = 37,
-        KEYCODE_DOWN = 40,
-        KEYCODE_RIGHT = 39,
-        KEYCODE_Q = 81,
-        KEYCODE_E = 69,
-        KEYCODE_W = 87,
-        KEYCODE_S = 83,
-        KEYCODE_A = 65,
-        KEYCODE_D = 68;
-    
-    var rules, view, activeKeys, _player, _state;
-    
-    window.opspark.makePlayerManager = function (player, app, projectileManager) {
-        _player = player;
-        rules = app.rules;
-        view = app.view;
-        activeKeys = [];
-        _state = 'walking';
-        
-        player.on('fire', function () {
-            projectileManager.fire(player);
-        });
-        activate();
-        
-        var _playerManager = {
-            player: player,
-            update: update,
-            hitTest: hitTest,
-            handleCollision: handleCollision
+   
+    var
+        _ = window._,
+        physikz = window.opspark.racket.physikz,
+        draw = window.opspark.draw,
+        createjs = window.createjs;
+   
+    window.opspark.makeHalle = function (spritesheet, particleManager, showHitZones) {
+        var
+            _asset,
+            _walk,
+            _run,
+            _jump,
+            _jumpfly,
+            _duck,
+            _duckin,
+            _duckout,
+            _shootStart,
+            _shootEnd,
+            _stopside,
+            _die,
+            _bounds,
+            _dust;
+           
+        /*
+         * halle : A variable that holds a reference to "this" within the
+         * context of the Halle object.
+         */
+        var halle, hitzones;
+       
+       
+        /*
+         * Halle : The Constructor of our Halle Class.
+         */
+        function Halle() {
+            halle = this;
+            halle.Container_initialize();
+            halle.initialize();
+        }
+       
+        /*
+         * Our Halle Class will inherit its properties and behaviours from the
+         * CreateJS Container Class.
+         *
+         * See http://www.createjs.com/Docs/EaselJS/classes/Container.html
+         *
+         * It's an unfortunate way to inherit in JS, but it's our best choice with the
+         * way CreateJS is implemented.
+         */
+        var p = Halle.prototype = new createjs.Container();
+        p.Container_initialize = p.initialize;
+       
+        p.initialize = function () {
+            halle.setAsset(_walk);
+            hitzones = new createjs.Container();
+            halle.on('added', function (e) {
+                halle.parent.addChild(hitzones);
+                hitzones.x = halle.x;
+                hitzones.y = halle.y;
+                var hitHead = _.extend(draw.circle(25, 'rgba(0, 0, 0, .3'), physikz.makeBody('hitzone'));
+                hitHead.y = hitHead.radius;
+                var hitFace = _.extend(draw.circle(20, 'rgba(0, 0, 0, .3'), physikz.makeBody('hitzone'));
+                hitFace.y = hitHead.radius * 2;
+               
+                // var hitzone40 = new createjs.Bitmap(window.opspark.hitzone40);
+                // hitzone40.regX = hitzone40.image.width / 2;
+                // hitzone40.regY = hitzone40.image.height / 2;
+                // var hitBody = _.extend(hitzone40, physikz.makeBody('hitzone'));
+               
+                var hitBody = _.extend(draw.circle(20, 'rgba(0, 0, 0, .3'), physikz.makeBody('hitzone'));
+                hitBody.radius = 20;
+                hitHead.handleCollision = hitFace.handleCollision = hitBody.handleCollision = handleCollision;
+                hitBody.y = hitBody.radius + hitHead.radius * 2;
+                hitzones.addChild(hitHead);
+                hitzones.addChild(hitFace);
+                hitzones.addChild(hitBody);
+               
+                if (!showHitZones) {
+                    hitzones.children.forEach(function(hitzone) {
+                        hitzone.alpha = 0;
+                    });
+                }
+            });
         };
-        
+       
+        function handleCollision(impact, body) {
+        }
+       
+        function setAsset(asset) {
+            // var bounds = asset.getTransformedBounds();
+            // var boundingBox = draw.rect(bounds.width, bounds.height, 'rgba(0, 0, 0, .3');
+            halle.removeChild(_asset);
+            _asset = asset;
+            halle.addChild(asset);
+            // halle.addChild(boundingBox);
+        }
+        p.setAsset = setAsset;
+       
+        p.jump = function(resume) {
+            setAsset(_jump);
+            tweenHitForAction(_jump.y + halle.y, null, 150, 150, 0, -30);
+        };
+       
+        p.jumpfly = function() {
+            setAsset(_jumpfly);
+            tweenHitForAction(_jumpfly.y + halle.y, null, 150, 150, 600);
+        };
+       
+        p.run = function() {
+            setAsset(_run);
+        };
+       
+        p.walk = function() {
+            setAsset(_walk);
+        };
+       
+        p.duck = function () {
+            setAsset(_duck);
+            tweenHitForAction(halle.y + halle.getBounds().height / 4, null, 100, 150, 220);
+        };
+       
+        p.duckin = function () {
+            setAsset(_duckin);
+            tweenHitForDuckin(halle.y + halle.getBounds().height / 4, null, 100);
+        };
+        function tweenHitForDuckin(toY, toX, time) {
+            createjs.Tween.get(hitzones)
+                 .to({y: toY, x:toX || halle.x}, time)
+                 .call(handleComplete);
+            function handleComplete() {
+            }
+        }
+       
+        p.duckout = function () {
+            setAsset(_duckout);
+            tweenHitForDuckout(halle.y, halle.x, 220);
+        };
+        function tweenHitForDuckout(toY, toX, time) {
+            createjs.Tween.get(hitzones)
+                 .to({y: toY, x:toX || halle.x}, time)
+                 .call(handleComplete);
+            function handleComplete() {
+            }
+        }
+       
+        p.shoot = function () {
+            setAsset(_shootStart);
+            tweenHitForAction(_shootStart.y + halle.y + 20, halle.x - 30, 100, 150, 300);
+        };
+       
+        function shootEnd() {
+            setAsset(_shootEnd);
+        }
+       
+        p.stop = function() {
+            setAsset(_stopside);
+        };
+       
+        p.die = function() {
+            setAsset(_die);
+        };
+       
+        /*
+         * Returns an Array of display objects representing the
+         * hitzones of the player.
+         */
+        p.hitzones = function () {
+            return hitzones.children;
+        };
+       
+        p.hitzoneContainer = function() {
+            return hitzones;
+        }
+       
+        p.getProjectilePoint = function () {
+            return halle.localToGlobal(35, 60);
+        };
+       
+        function kickUpDust() {
+            _dust.emit({x: halle.x + 8, y: halle.y + halle.getBounds().height}, 0.3);
+        }
+        p.kickUpDust = kickUpDust;
+       
+        function tweenHitForAction(toY, toX, timeIn, timeOut, between, toRotation) {
+            createjs.Tween.get(hitzones)
+                 .to({y: toY, x:toX || halle.x, rotation: toRotation || halle.rotation}, timeIn)
+                 .wait(between || 0)
+                 .to({y: halle.y, x: halle.x, rotation: 0}, timeOut)
+                 .call(handleComplete);
+            function handleComplete() {
+            }
+        }
+       
+        ////////////////////////////////////////////////////////////////////////
+        // INITIALIZE ANIMATIONS ///////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////////
+       
+        _dust = particleManager.makeEmitter(1, 3, null, new Proton.Velocity(new Proton.Span(1, 2), new Proton.Span(0, 360), 'polar'), [new Proton.RandomDrift(5, 0)]);
+       
+        _walk = new createjs.Sprite(spritesheet, "walk");
+        configureSprite(_walk);
+        _bounds = _walk.getBounds();
+           
+        /*
+         * Handle the jump sequence specially because its height is grater
+         * than walking. The spritesheet assets need to be modified to fix this
+         * issue - they should not leave the same bounding box, and we can  
+         * animate height programmatically.
+         */
+        _jump = new createjs.Sprite(spritesheet, "jump");
+        _jump.x = -(_jump.getBounds().width / 5) - 20;
+        _jump.regX = _jump.width / 2;
+        _jump.y = -(_jump.getBounds().height / 5) - 20;
+        _jump.on('animationend', function (e) {
+            setAsset(_walk);
+            kickUpDust();
+        });
+       
+        _jumpfly = new createjs.Sprite(spritesheet, "jumpfly");
+        _jumpfly.x = -(_jumpfly.getBounds().width / 5) - 20;
+        _jumpfly.regX = _jumpfly.width / 2;
+        _jumpfly.y = -(_jumpfly.getBounds().height / 5) - 17;
+        _jumpfly.on('animationend', function (e) {
+            setAsset(_walk);
+            kickUpDust();
+        });
+       
+        _shootStart = new createjs.Sprite(spritesheet, "shootstart");
+        configureSprite(_shootStart);
+        _shootStart.y = -10;// -(_shootStart.getBounds().height);
+        _shootStart.on('animationend', function (e) {
+            halle.dispatchEvent(new createjs.Event("fire"));
+            shootEnd();
+        });
+       
+        _shootEnd = new createjs.Sprite(spritesheet, "shootend");
+        configureSprite(_shootEnd);
+        _shootEnd.y = -10;
+        _shootEnd.on('animationend', function (e) {
+            setAsset(_walk);
+        });
+       
+        _duck = new createjs.Sprite(spritesheet, "duck");
+        configureSprite(_duck);
+        _duck.y = -7;
+        _duck.on('animationend', function (e) {
+            setAsset(_walk);
+        });
+       
+        _duckin = new createjs.Sprite(spritesheet, "duckin");
+        configureSprite(_duckin);
+        _duckin.y = -7;
+        _duckin.on('animationend', function (e) {
+            _duckin.stop();
+        });
+       
+        _duckout = new createjs.Sprite(spritesheet, "duckout");
+        configureSprite(_duckout);
+        _duckout.y = -7;
+        _duckout.on('animationend', function (e) {
+            setAsset(_walk);
+        });
+       
+        _stopside = new createjs.Sprite(spritesheet, "stopside");
+        configureSprite(_stopside);
+       
+        _run = new createjs.Sprite(spritesheet, "run");
+        configureSprite(_run);
+       
+        _die = new createjs.Sprite(spritesheet, "diefront");
+        configureSprite(_die);
+        _die.x = -(_die.getBounds().width / 2) + 8;
+        _die.y = -(_die.getBounds().height / 2) + 55;
+        _die.on('animationend', function (e) {
+            halle.removeChild(_asset);
+            halle.dispatchEvent(new createjs.Event("gameover"));
+        });
+       
+       
         function update() {
         }
-        
-        function activate() {
-            player.on('exploded', onPlayerExploded);
-            player.on('damaged', onPlayerDamaged);
-            document.onkeydown = document.onkeyup = onKeyActivity;
+        p.update = update;
+       
+        function move(toX, toY) {
         }
-        
-        function deactive() {
-            onKeyUp();
-            player.removeEventListener('exploded', onPlayerExploded);
-            player.removeEventListener('damaged', onPlayerDamaged);
-            document.onkeydown = document.onkeyup = null;
+        p.move = move;
+       
+        function configureSprite(sprite) {
+            sprite.x = -(sprite.getBounds().width / 2);
+            sprite.regX = sprite.width / 2;
+            // sprite.y = -(sprite.getBounds().height / 5);
+            // sprite.regY = sprite.height / 2;
         }
-        
-        function onKeyActivity(e){
-            e = e || window.event;
-            activeKeys[e.keyCode] = e.type === 'keydown';
-            
-            if (e.type === 'keyup') {
-                onKeyUp(e);
-            } else {
-                onKeyDown(e);
-            }
-        }
-        
-        function onKeyDown(e) {
-            if (activeKeys[KEYCODE_RIGHT]) {
-                player.jumpfly();
-            } else if (activeKeys[KEYCODE_UP]) {
-                player.jump();
-            } else if (activeKeys[KEYCODE_Q]) {
-                player.die();
-                setTimeout(function() {
-                    document.location.reload()
-                    alert("press enter to start over");
-                }, 1100);
-            } else if (activeKeys[KEYCODE_DOWN]) {
-                player.duckin();
-                _state = 'ducking';
-            }
-            
-            if (activeKeys[KEYCODE_SPACE]) { 
-                player.shoot();
-            }
-        }
-        
-        function onKeyUp(e) {
-            if (_state === 'ducking') {
-                player.duckout();
-                _state = 'walking';
-            }
-        }
-        
-        function onPlayerExploded(e) {
-            deactive();
-            
-            var i, id;
-            
-            // hud.setIntegrity(0);
-            // player.alpha = 0;
-            
-            i = 0;
-            id = setInterval(function(){
-              player.explosion.emit({x: player.x, y: player.y});
-              if (i > 60) {
-                  window.clearInterval(id);
-                  player.explosion.stop();
-                  //space.splice(space.indexOf(player), 1);
-                  view.removeChild(player);
-              }
-              i++;
-            }, 17);
-        }
-        
-        function onPlayerDamaged(e) {
-            // hud.setIntegrity(player.integrity);
-        }
-        
-        return _playerManager;
+       
+        return new Halle();
     };
-    
-    function hitTest(body) {
-        _player.hitzones().forEach(function(hitzone) {
-            var hitzonePoint = hitzone.localToGlobal(0,0);
-            var distanceProperties = physikz.getDistanceProperties(hitzonePoint, body);
-            var hitResult = physikz.hitTestRadial(distanceProperties.distance, hitzone, body);
-            if (hitResult.isHit) {
-                handleCollision(distanceProperties, hitResult, physikz.getImpactProperties(hitzone, body));
-            }
-        });
-    }
-    
-    function handleCollision(distanceProperties, hitResult, impactProperties) {
-        /*
-         * The velocity of Halle's hitzones (bodyA in this context) will 
-         * not effected by any impact, in short, they will not move, so 
-         * treat only bodyB (body in this context) .
-         */
-        
-        var body = distanceProperties.bodyB; // the obstacle
-        body.handleCollision(impactProperties.impact, impactProperties.bodyA); // orb handling collision with hitzone //
-        impactProperties.bodyA.handleCollision(impactProperties.impact, body); // halle's hitzone handling collision with orb //
-    }
-    
-}(window));
+   
+   
+})(window);
+
+
+
+
